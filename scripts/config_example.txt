@@ -1,0 +1,12 @@
+path/qemu-riscv64
+emulator_flag
+path/riscv64-unknown-elf-gcc
+-march=rv64gcv_zvfh -mabi=lp64d -Wno-psabi -static -O0
+path/riscv64-unknown-elf-gcc
+-march=rv64gcv_zvfh -mabi=lp64d -Wno-psabi -static -O1
+path/riscv64-unknown-elf-gcc
+-march=rv64gcv_zvfh -mabi=lp64d -Wno-psabi -static -O2
+path/riscv64-unknown-elf-gcc
+-march=rv64gcv_zvfh -mabi=lp64d -Wno-psabi -static -O3
+path/riscv64-unknown-elf-gcc
+-march=rv64gcv_zvfh -mabi=lp64d -Wno-psabi -static -Os

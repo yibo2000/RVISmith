@@ -1,0 +1,8 @@
+{
+    "rvismith_path": "../RVISmith-1.0.0-ubuntu-20.04-x86_64/bin/rvismith-implicit",
+    "testcode_path": "code-example/2-implicit/",
+    "number": 5,
+    "segment": 1,
+    "policy": 0,
+    "overloaded": 1
+}

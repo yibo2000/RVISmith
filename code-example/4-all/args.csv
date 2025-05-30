@@ -1,0 +1,5 @@
+0,0x9ded618f,2,5,vfloat16mf4_t
+1,0x70016871,4,9,vuint8mf2_t
+2,0x44593cd5,4,2,vint64m1_t
+3,0x03a6e49e,4,6,vint32m8_t
+4,0x3e90de9d,5,5,vfloat32m8_t
