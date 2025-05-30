@@ -1,0 +1,37 @@
+.vscode/
+.cache/
+*.pyc
+**/.DS_Store
+
+# Files made by compilation.
+.deps/
+.libs/
+*.a
+*.la
+*.lo
+*.o
+*.obj
+*.so
+*.so[0-9.]*
+eval_once.sh
+gen_once.sh
+
+# CMake-related files
+build/
+build*/
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
+
+# Intermediate files
+rvv-doc/ignored.txt
+rvv-doc/merged.txt
