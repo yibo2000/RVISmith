@@ -37,6 +37,7 @@ After each successful execution, three C programs `allin.c`, `random.c`, and `un
 For a quick start, we recommend our docker container that includes RISC-V compilers under test and other necessary environment configurations.
 
 Available at: https://zenodo.org/records/15548270
+README.md at: [README.md](https://github.com/Yibo-He/RVISmith/blob/main/artifact/README.md)
 
 ## Useful Scripts
 
