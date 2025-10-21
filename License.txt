@@ -1,0 +1,15 @@
+LICENSE FOR ARTIFACT EVALUATION
+
+This artifact is provided solely for the purpose of academic evaluation 
+in connection with the submission titled [RVISmith: Fuzzing Compilers for RVV Intrinsics].
+
+TERMS:
+1. You may use this artifact only to evaluate the Paper's claims and results.
+2. You may not redistribute, modify, or use this artifact for any other purpose.
+3. The artifact is provided "AS IS" without warranty of any kind.
+4. All other rights are reserved by the authors.
+
+This license terminates automatically upon completion of the artifact evaluation 
+process or if you violate any of these terms.
+
+Copyright (c) 2025, Authors of RVISmith

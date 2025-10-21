@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.1)
+project(RVISmith VERSION 1.0.0 LANGUAGES CXX C)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
+set(SRC ${CMAKE_CURRENT_LIST_DIR}/src)
+set(SOFTFLOAT ${CMAKE_CURRENT_LIST_DIR}/extern/riscv-softfloat-standalone)
+
+include_directories(${SRC})
+include_directories(${SOFTFLOAT})
+include_directories(${SOFTFLOAT}/include)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/extern)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/def)
+
+add_subdirectory(extern)
+add_subdirectory(src)
+#add_subdirectory(tool)
+#add_subdirectory(tests)
+add_executable(RVISmith main.cpp)
+target_link_libraries(RVISmith Utils Operator Register Memory Operator_D Operator_J CodeGen)
+
+install(TARGETS RVISmith DESTINATION bin)
+include(InstallRequiredSystemLibraries)
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_LIST_DIR}/License.txt")
+set(CPACK_PACKAGE_NAME "RVISmith")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_GENERATOR "TGZ")
+include(CPack)

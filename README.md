@@ -40,6 +40,65 @@ Available at: https://zenodo.org/records/15548270
 
 README.md at: [README.md](https://github.com/Yibo-He/RVISmith/blob/main/artifact/README.md)
 
+## Build from Source Code
+
+### Prepare the list of under test rvv intrinsics
+
+The list file should be in `txt` or `adoc` format. Each line that define a rvv intrinsic in the file should be end with **';'**, because our scripts use the ';' char to judge whether a line is a rvv intrinsic definition or irrelevant text.
+
+We recommend to use our rvv intrinsic list files in `rvv-doc/`. We provided [RISC-V Vector Intrinsic Document](https://github.com/riscv-non-isa/rvv-intrinsic-doc/tree/main) in the above required format. The current implementation of RVISmith is based on this document.
+
+### Generate the .jsonl and .def file
+
+```
+$ python3 scripts/MergeDoc.py <list_file_dir>
+```
+
+If you want to use our rvv intrinsic list files, e.g. official rvv intrinsic document v1.0-rc2:
+
+```bash
+# explicit intrinsics:
+$ python3 scripts/MergeDoc.py ./rvv-doc/rvv-intrinsic-doc-1.0-rc2/explicit_intrinsic_funcs
+```
+
+The script will recursively processe files in directories by `os.walk()`. The following files will be generated:
+
+- ./def/Intrinsics_part*.def
+- ./def/Types.def
+- ./src/Operator_D.cpp
+- ./rvv-doc/merged.txt: rvv intrinsic lines ending with ';'
+- ./rvv-doc/ignored.txt: ignored lines (for debug)
+- ./rvv-doc/parsed.jsonl: parsed rvv intrinsic definations in json format
+
+To test other parts of rvv intrinsics:
+
+```bash
+# explicit intrinsics, policy variants:
+$ python3 scripts/MergeDoc.py ./rvv-doc/rvv-intrinsic-doc-1.0-rc2/explicit_intrinsic_funcs_policy_variants
+# implicit intrinsics:
+$ python3 scripts/MergeDoc.py ./rvv-doc/rvv-intrinsic-doc-1.0-rc2/implicit_intrinsic_funcs
+# implicit intrinsics, policy variants:
+$ python3 scripts/MergeDoc.py ./rvv-doc/rvv-intrinsic-doc-1.0-rc2/implicit_intrinsic_funcs_policy_variants
+# all intrinsics
+$ python3 scripts/MergeDoc.py ./rvv-doc/rvv-intrinsic-doc-1.0-rc2/
+```
+
+### Build and use
+
+You can compile RVISmith in two ways:
+
+- (default and recommended) set `#define DEF_INPUT 1` in `src/Utils.hpp`: `def/*.def` is the input, compile slow, run fast. This setting is recommended when detecting bugs in compilers of a long time period.
+- set `#define DEF_INPUT 0` in `src/Utils.hpp`: `.jsonl` is the input, compile fast, run slow. This setting is recommended for fast development iterations or trying RVISmith.
+
+Compilation:
+
+```bash
+$ mkdir build && cd build
+$ cmake ../
+# about 5-10 minutes
+$ make
+```
+
 ## Useful Scripts
 
 Several useful scripts are provided in `./scripts`.
