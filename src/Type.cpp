@@ -1,5 +1,6 @@
 #include "Type.hpp"
 
+VectorType ConnectType;
 UsedTYPES UsedTypes;
 
 constexpr unsigned int str2int(const char* str, int h = 0){
@@ -81,48 +82,6 @@ void UsedTYPES::printTypeMap(){
     }
 }
 
-#if JSON_INPUT
-void UsedTYPES::initializeAllTypes(){
-    using json = nlohmann::json;
-
-    std::ifstream JsonlFile; JsonlFile.open(JsonlFilePath);
-    if (JsonlFile.is_open() == false) {
-        std::cerr << "Error: open jsonl file failed. Please check the path." << std::endl;
-        exit(1);
-    }
-
-    std::cout << "Extracting data types ..." << std::endl;
-    totalLineNum = 0; std::string line;
-    std::set<std::string> typeStrings;
-
-    while (getline(JsonlFile, line)) {
-        try {
-            json j = json::parse(line); totalLineNum += 1;
-            std::string retype(j["retype"]); typeStrings.insert(retype);
-
-            for(int i=0; i<j["parameters"].size(); ++i){
-                std::string tmp_type(j["parameters"][i]["ptype"]);
-                std::string tmp_name(j["parameters"][i]["pname"]);
-                typeStrings.insert(tmp_type);
-            }
-        } catch (json::parse_error& e) { std::cerr << "Json parse error: " << e.what() << std::endl; }
-    }
-
-    for (auto s: typeStrings){
-        BaseType* ptr = nullptr; if(s=="") continue;
-
-        if(s == "void") { ptr = new BaseType(s); this->insert(std::move(s), ptr); }
-        else if(s[0] == 'v') { ptr = new VectorType(s); this->insert(std::move(s), ptr); }
-        else { ptr = new GeneralType(s); this->insert(std::move(s), ptr); }
-    }
-
-    std::cout << "Data types finished." << std::endl;
-    JsonlFile.close();
-}
-#endif // JSON_INPUT
-
-#if DEF_INPUT
-
 void UsedTYPES::initializeAllTypes(){
 
     #define BASETYPE(TYPE_STR) {                    \
@@ -138,14 +97,13 @@ void UsedTYPES::initializeAllTypes(){
     this->insert( std::string(#TYPE_STR), ptr );      \
     }
 
-    #include "Types.def"
+    #include "Type.def"
     #undef BASETYPE 
     #undef VECTORTYPE 
     #undef GENERALTYPE
 
+    ConnectType = VectorType(ConnectTypeStr);
 }
-
-#endif // DEF_INPUT
 
 void VectorType::parse_vtype(){
     // e.g., vfloat32m4_t, vuint32mf2x8_t, vbool4_t

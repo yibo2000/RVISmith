@@ -1,12 +1,11 @@
 #ifndef OPERATOR_HPP
 #define OPERATOR_HPP
 
-#include <string>
-#include <vector>
+#include <set>
 #include <fstream>
-#include "Type.hpp"
-#include "Utils.hpp"
 #include "Register.hpp"
+#include "OpData.hpp"
+#include "Guidance.hpp"
 
 class Parameter{
     private:
@@ -16,6 +15,7 @@ class Parameter{
         // bool onlyzero;      // used for store operation, when onlyzero = true, only print element[0].
         VRegister* pvreg;   // for std::vector register type
         Parameter():__ptype__(""),__pname__(""),pvreg(nullptr){}
+        Parameter(const char* type, const char* pname):__ptype__(type),__pname__(pname),pvreg(nullptr){}
         Parameter(std::string type, std::string pname):__ptype__(type),__pname__(pname),pvreg(nullptr){}
         // Parameter(std::string type, std::string pname, bool zero):__ptype__(type),__pname__(pname),pvreg(nullptr),onlyzero(zero){}
         ~Parameter(){
@@ -24,7 +24,7 @@ class Parameter{
             // When more than one parameters share with the same register, deleting vregister points
             // in the parameter class will cause segmentation fault.
         }
-        BaseType * getPtypePtr(UsedTYPES && UsedTypes){ return UsedTypes.TypeMap[__ptype__]; }
+        BaseType * getPtypePtr(){ return UsedTypes.TypeMap[__ptype__]; }
         std::string getPtype(){ return __ptype__; }
         std::string getPname(){ return __pname__; }
         Type enumType(){
@@ -34,16 +34,22 @@ class Parameter{
             if(this->getPtype() == "size_t" && this->getPname() == "index")    return Type::Index;
             if(this->getPtype() == "ptrdiff_t")    return Type::Ptrdiff;
             if( startsWith( this->getPtype(), "vbool" ) && this->getPname() == "vm")    return Type::VMASK;
+
+            auto PtypePtr = this->getPtypePtr();
+            if (PtypePtr != nullptr) return PtypePtr->enumType();
             return Type::UnknownType; 
-        }
-        Type enumType(UsedTYPES && UsedTypes){ 
-            Type res = enumType();
-            if(res == Type::UnknownType) return (this->getPtypePtr(std::move(UsedTypes)))->enumType(); 
-            else return res;
         }
         bool operator < (const Parameter& para) const{
             return __pname__ < para.__pname__;
-        } // used in set: codegen
+        }
+};
+
+enum OperatorType{
+    Load,
+    Operation,
+    Store,
+    Others,
+    UnknownOP
 };
 
 class BaseOperator{
@@ -54,130 +60,116 @@ class BaseOperator{
     public:
         std::vector<Parameter> paras;
         VRegister* retvreg;    // for return value type is std::vector register type
-        BaseOperator():__retype__(""),__name__(""),retvreg(nullptr),nfield(""){};
-
-#if JSON_INPUT
-        BaseOperator(nlohmann::json && j):__retype__( j["retype"] ), __name__(j["intrinsic"]),retvreg(nullptr),nfield(""){
-            // used when .jsonl files are input
-            nfield = UsedTypes.TypeMap[__retype__]->getNfield();
-            std::set<int> ratios;
-            int r = UsedTypes.TypeMap[__retype__]->getRatio();
-            if( r > 0) ratios.insert(r);
-            for(int i=0; i<j["parameters"].size(); ++i){
-                std::string tmp_type(j["parameters"][i]["ptype"]);
-                std::string tmp_name(j["parameters"][i]["pname"]);
-                Parameter para(tmp_type, tmp_name);
-                // set nfield
-                std::string pNfield = para.getPtypePtr(std::move(UsedTypes))->getNfield();
-                assert( nfield == "" || pNfield == "" || pNfield == nfield );
-                if(pNfield != "") nfield = pNfield;
-                // set commonRatio
-                int pr = UsedTypes.TypeMap[tmp_type]->getRatio();
-                if(pr > 0)  ratios.insert( pr );
-                paras.push_back( para );
-            }
-            // set commonRatio
-            if(ratios.size() <= 0 ){
-                // no vector type
-                commonRatio = 0;
-            }else if(ratios.size() == 1 ){
-                commonRatio = *ratios.begin();
-            }else if(ratios.size() > 1 ){
-                commonRatio = 0;
-            }
+        std::string nfield; // if used tuple types, set as nfield of the corresponding type, else empty string
+        int commonRatio; // > 0: aligned ratio; = 0: non-aligned
+        OperatorType intrinsic_type;
+        BaseOperator():__retype__(""),__name__(""),retvreg(nullptr),nfield(""),commonRatio(0), intrinsic_type(OperatorType::UnknownOP),opdata_id(SIZE_MAX){};
+        BaseOperator(const OpData & opdata):__retype__(opdata.retType),__name__(opdata.funcName),retvreg(nullptr),nfield(""), \
+        commonRatio(opdata.ratio),intrinsic_type(OperatorType::UnknownOP),opdata_id(SIZE_MAX){
+            this->OpInit(opdata.pNum, opdata.args);
         }
-#endif // #if JSON_INPUT
-
-#if DEF_INPUT
-        BaseOperator(std::string retype, std::string name, int pnum, std::vector<std::string> vptype_and_pname): \
-        __retype__( retype ),__name__(name),retvreg(nullptr),nfield(""){
-            // used when .def files are input
-            assert( pnum * 2 == vptype_and_pname.size() );
-            nfield = UsedTypes.TypeMap[__retype__]->getNfield();
-            std::set<int> ratios;
-            int r = UsedTypes.TypeMap[__retype__]->getRatio();
-            if( r > 0) ratios.insert(r);
-            for(int i = 0; i<vptype_and_pname.size(); i+=2) {
-                Parameter para(vptype_and_pname[i], vptype_and_pname[i+1]);
-                // set nfield
-                std::string pNfield = para.getPtypePtr(std::move(UsedTypes))->getNfield();
-                assert( nfield == "" || pNfield == "" || pNfield == nfield );
-                if(pNfield != "") nfield = pNfield;
-                // set commonRatio
-                int pr = UsedTypes.TypeMap[vptype_and_pname[i]]->getRatio();
-                if(pr > 0)  ratios.insert( pr );
-                paras.push_back( para );
+        BaseOperator(std::string retype, std::string name, size_t ratio, size_t pnum, std::initializer_list<const char*> raw_args): \
+        __retype__( retype ),__name__(name),retvreg(nullptr),nfield(""),commonRatio(ratio),intrinsic_type(OperatorType::UnknownOP),opdata_id(SIZE_MAX){
+            const char* args[MAX_ARG_TOKENS] = { nullptr };
+            size_t idx = 0;
+            for (auto it = raw_args.begin(); it != raw_args.end() && idx < MAX_ARG_TOKENS; ++it, ++idx) {
+                args[idx] = *it;
             }
-            // set commonRatio
-            if(ratios.size() <= 0 ){
-                // no vector type
-                commonRatio = 0;
-            }else if(ratios.size() == 1 ){
-                commonRatio = *ratios.begin();
-            }else if(ratios.size() > 1 ){
-                commonRatio = 0;
-            }
+            this->OpInit(pnum, args);
         }
-#endif // DEF_INPUT
-
         ~BaseOperator(){}
+        void OpInit(size_t pnum, const char* const raw_args[MAX_ARG_TOKENS]);
         std::string getRetype(){ return __retype__; }
         std::string getName(){ return __name__; } // return the instrinsic name
-        BaseType * getRetypePtr(UsedTYPES && UsedTypes){ return UsedTypes.TypeMap[__retype__]; }
-        Type enumRetype(UsedTYPES && UsedTypes){ return (this->getRetypePtr(std::move(UsedTypes)))->enumType(); }
+        BaseType * getRetypePtr(){ 
+            if (UsedTypes.TypeMap.find(__retype__) == UsedTypes.TypeMap.end()) {
+                std::cerr << "Error: type " << __retype__ << " not found in UsedTypes." << std::endl;
+                exit(1);
+            }
+            return UsedTypes.TypeMap[__retype__]; 
+        }
+        Type enumRetype(){ return (this->getRetypePtr())->enumType(); }
         std::string getDefStr(); // return the definition std::string
 
-        //bool ifUsedType (std::string queryType); // return whether the intrinsic uses the given type (parameter type or return type)
         bool ifUsedSegment (); // return whether the intrinsic uses the tuple type (e.g., vint8mf8x2_t)
-        
         bool ifTailProducer(); // whether this intrinsic can produce tail elements
         bool ifReduction(); // whether this intrinsic is reduction operation
         bool ifWithoutMaskIntrin(); // whether this intrinsic cannot use data loaded by mask-intrinsics
 
         void printInfo(); // print the information of the intrinsic (for debug)
-        std::string codegen(UsedTYPES && UsedTypes);
-
-        std::string nfield; // if used tuple types, set as nfield of the corresponding type, else empty string
-        void setNfiled();
-
-
-        // ratio related
-        bool ifUsedRatio (int ratio);
-        // > 0: aligned ratio
-        // = 0: non-aligned
-        int commonRatio;
-        int setRatio();
-
         bool alwaysAgnostic();
+        
+        std::string codegen(); // for operation intrinsics
+        // for load intrinsics
+        // type: vector type after load; regName: vector var name after load; loadVar: global data
+        std::vector<std::string> load_gen(std::string type, std::string regName, std::string loadVar, bool allMaskIsTrue = false);
+        // for store intrinsics
+        std::vector<std::string> store_gen(std::string type, std::string regName, std::string storeVar, bool allMaskIsTrue = false);
+
+        // for coverage guidance (hash)
+        uint64_t opdata_id;
+};
+
+// for index load/store intrinsics
+class VIndex{
+    public:
+        std::string idxType; 
+        std::string idxName;
+        int maxValue;
+        static int number;
+        std::vector<int> vals;
+        VIndex():idxType(""),idxName("idx_"+std::to_string(number++)),maxValue(0){ 
+            for(size_t i = 0; i < dataLen; ++i) vals.push_back(0); 
+        };
+        VIndex(std::string type, int maxV, bool conservative = false):idxType(type),idxName("idx_"+std::to_string(number++)),maxValue(maxV){
+            int start = 0;
+            int end = maxValue;
+            for(size_t i=0;i<dataLen;++i) {
+                if(conservative) vals.push_back( i % 256 );
+                else vals.push_back( getRandomNumber<int>(start, end) );
+            }
+        };
 };
 
 class OpDEFS{
     public:
-        std::vector<BaseOperator* > UnderTestIntrinsics;
-        OpDEFS():UnderTestIntrinsics(),UnifiedNfield(""){ ; };
+        // std::vector<BaseOperator* > UnderTestIntrinsics;
+        OpDEFS(){};
         ~OpDEFS(){
-            for(auto ptr: UnderTestIntrinsics){ if(ptr) { delete ptr; ptr = nullptr; } }
+            for (auto& [key, opsVector] : LoadIntrinsics) {
+                for (auto& ptr : opsVector) { if (ptr) {  delete ptr; ptr = nullptr; } }
+            }
+            for (auto& [key, opsVector] : StoreIntrinsics) {
+                for (auto& ptr : opsVector) { if (ptr) {  delete ptr; ptr = nullptr; } }
+            }
+            for(auto ptr: OpIntrinsics){ if(ptr) { delete ptr; ptr = nullptr; } }
+            for(auto ptr: SetvlIntrinsics){ if(ptr) { delete ptr; ptr = nullptr; } }
+            for(auto ptr: IgnoredIntrinsics){ if(ptr) { delete ptr; ptr = nullptr; } }
         }
-        void insert(BaseOperator * ptr){ UnderTestIntrinsics.push_back(ptr); }
-        void push_back(BaseOperator * ptr){ UnderTestIntrinsics.push_back(ptr); }
-        void extend(std::vector<BaseOperator * > v) { UnderTestIntrinsics.insert( UnderTestIntrinsics.end(), v.begin(), v.end() ); }
 
-        std::vector<BaseOperator* > LoadIntrinsics;
-        std::vector<BaseOperator* > StoreIntrinsics;
+        void initializeOpDefinitions();
+
+        std::unordered_map<std::string, std::vector<BaseOperator* >> LoadIntrinsics; // key: vector type (ret); value: load intrinsics
+        std::unordered_map<std::string, std::vector<BaseOperator* >> StoreIntrinsics; // key: vector type (vs3); value: store intrinsics
         std::vector<BaseOperator* > OpIntrinsics;
         std::vector<BaseOperator* > SetvlIntrinsics;
         std::vector<BaseOperator* > IgnoredIntrinsics;
 
-        std::string UnifiedNfield; // xn, the only one nfield used in intrinsics after organization (--segment)
-        void setUnifiedNfield();
-        void organize(std::string usedType, bool ifClear = true);
-        void organize(std::vector<std::string> usedTypes);
-        void clearPool();
 
-        std::vector<BaseOperator > selectOpSeq(int size);
-        void initializeOpDefinitions();
+        std::string MaxNfield;
+        void setMaxNfield();
+        void organize();
+
+        void selectOpSeq(int size);
+        std::vector<BaseOperator> selectedOp;
 };
 
 extern OpDEFS OpDefs;
+
+extern bool ifReduction(const std::string& s);
+extern std::string vsetvl(int ratio, std::string avl = "avl");
+extern std::string vsetvl_max(int ratio);
+
+BaseOperator* select_cov_guide(std::vector<BaseOperator* >& candidate);
 
 #endif // OPERATOR_HPP

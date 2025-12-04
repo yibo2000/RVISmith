@@ -1,87 +1,48 @@
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <fstream>
-#include <unistd.h>
-#include <filesystem> // C++ 17 is required
-
 #include "Operator.hpp"
 #include "Utils.hpp"
 #include "Register.hpp"
 #include "CodeGen.hpp"
-
-using namespace std;
+#include "Guidance.hpp"
 
 int main(int argc, char *argv[]) {
     // parse arguments
     parseArguments(argc, argv);
 
-    // initialize
-    // connect_type = "vfloat64m2_t";
-    
-    initializeRNG(InitialSeed);
+    // initialize   
+    if(print_cov) {
+        covmap.init_or_load();
+        std::cout << covmap.get_coverage() << std:: endl;
+        exit(0);
+    }
+    if(cov_guide || cov_log) covmap.init_or_load(); 
     UsedTypes.initializeAllTypes();
-    OpDefs.setUnifiedNfield();
     OpDefs.initializeOpDefinitions();
-    OpDefs.organize(connect_type);
-    cout << "Intrinsics under test collected. Start to generate rvv intrinsic code." << endl;
+    OpDefs.selectOpSeq(seqLen);
 
-    /*for (auto it: OpDefs.IgnoredIntrinsics){
-        it->printInfo();
-    }*/
-    // select a sequence
-    cout<<"\nselect:\n";
-    vector<BaseOperator > selected = OpDefs.selectOpSeq(seqLen);
-    for(int i = 0; i<seqLen; i++){
-        selected[i].printInfo();
+    std::cout<<"select:\n";
+    for(size_t i = 0; i<seqLen; i++){
+        OpDefs.selectedOp[i].printInfo();
     }
     
-    CodeBlock codeblock(connect_type);
-    codeblock.vregAllocateRandom(selected); // vector register allocate
-    codeblock.insertLoadAndStoreIntrinsics(selected); // load-store
+    CodeBlock codeblock;
+    codeblock.vregAllocateRandom(OpDefs.selectedOp); // vector register allocate
+    codeblock.insertLoadAndStoreIntrinsics(OpDefs.selectedOp); // load-store
     MainBlock mainblock;
-    ofstream CCodeFile; 
+    std::ofstream CCodeFile; 
     std::filesystem::path CodeFilePath;
 
-    // random
-    SchedulingMode = SchedulingMODE::Random;
-    CodeFilePath = std::filesystem::path(CodeDirPath) / std::filesystem::path("random.c");
+    CodeFilePath = std::filesystem::path(CodeDirPath) / std::filesystem::path("test.cpp");
     // given a selected sequence with allocated registers,
     // return a vector of string representing instructions after scheduling
     codeblock.instructionScheduling(seqLen, SchedulingMode);
     // output the code
-    CCodeFile.open(CodeFilePath, ofstream::out | ofstream::trunc);
+    CCodeFile.open(CodeFilePath,std::ofstream::out | std::ofstream::trunc);
     codeblock.codegen(CCodeFile);
     mainblock.codegen(CCodeFile);
     CCodeFile.close();
-    cout << "The rvv intrinsic code has been generated in: " << std::filesystem::absolute(CodeFilePath) << endl;
-
-    // random
-    SchedulingMode = SchedulingMODE::Allin;
-    CodeFilePath = std::filesystem::path(CodeDirPath) / std::filesystem::path("allin.c");
-    // given a selected sequence with allocated registers,
-    // return a vector of string representing instructions after scheduling
-    codeblock.instructionScheduling(seqLen, SchedulingMode);
-    // output the code
-    CCodeFile.open(CodeFilePath, ofstream::out | ofstream::trunc);
-    codeblock.codegen(CCodeFile);
-    mainblock.codegen(CCodeFile);
-    CCodeFile.close();
-    cout << "The rvv intrinsic code has been generated in: " << std::filesystem::absolute(CodeFilePath) << endl;
-
-    // random
-    SchedulingMode = SchedulingMODE::Unit;
-    CodeFilePath = std::filesystem::path(CodeDirPath) / std::filesystem::path("unit.c");
-    // given a selected sequence with allocated registers,
-    // return a vector of string representing instructions after scheduling
-    codeblock.instructionScheduling(seqLen, SchedulingMode);
-    // output the code
-    CCodeFile.open(CodeFilePath, ofstream::out | ofstream::trunc);
-    codeblock.codegen(CCodeFile);
-    mainblock.codegen(CCodeFile);
-    CCodeFile.close();
-    cout << "The rvv intrinsic code has been generated in: " << std::filesystem::absolute(CodeFilePath) << endl;
+    std::cout << "The rvv intrinsic code has been generated in: " << std::filesystem::absolute(CodeFilePath) << std::endl;
+    
+    if(cov_guide || cov_log) std::cout << covmap.get_coverage() << std:: endl;
 
     return 0;
 }

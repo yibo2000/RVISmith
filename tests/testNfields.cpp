@@ -5,7 +5,7 @@
 int main(){
     InitialSeed = 0x9192;
     initializeRNG(InitialSeed);
-    OpDefs.setUnifiedNfield();
-    std::cout << OpDefs.UnifiedNfield << std::endl;
+    OpDefs.setMaxNfield();
+    std::cout << OpDefs.MaxNfield << std::endl;
     return 0;
 }

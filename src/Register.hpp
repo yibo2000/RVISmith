@@ -1,33 +1,12 @@
 #ifndef REGISTER_HPP
 #define REGISTER_HPP
 
-#include <string>
-#include <iostream>
-#include <map>
-#include <vector>
 #include "Type.hpp"
-#include "Utils.hpp"
-
-#ifndef MEM_MAX
-#define MEM_MAX 8
-#endif
-
-#ifndef VREG_MAX
-#define VREG_MAX 64
-#endif
-
-#ifndef VL_MAX
-#define VL_MAX 1
-#endif
-
-#ifndef MASK_MAX
-#define MASK_MAX 1
-#endif
 
 enum Source{
     Memory,     // load operation needed
     VectorReg,  // load operation not needed
-    Unknown
+    UnknownSrc
 };
 
 class VRegister{
@@ -44,14 +23,14 @@ class VRegister{
         static unsigned int vNum; // current number of std::vector-register-source register
         static void initializeReg();
 
-        VRegister():source(Source::Unknown), regName(""), valType(""), declared(false), ended(false){
-            for(int i=0;i<dataLen;++i){
+        VRegister():source(Source::UnknownSrc), valType(""), regName(""), declared(false), ended(false){
+            for(size_t i=0;i<dataLen;++i){
                 state.push_back(true);
             }
         };
-        VRegister(std::string type, Source src):valType(type), source(src), declared(false), ended(false){ 
+        VRegister(std::string type, Source src):source(src), valType(type), declared(false), ended(false){ 
             setName(); 
-            for(int i=0;i<dataLen;++i){
+            for(size_t i=0;i<dataLen;++i){
                 state.push_back(true);
             }
         };
@@ -72,16 +51,10 @@ class VRegister{
 
 class RegTable{
     public:
-        static unsigned int mNum_max; // max number of memory-source register
-        static unsigned int vNum_max; // max number of std::vector-register-source register
-        static unsigned int vlNum_max; // max number of vl register
-        static unsigned int maskNum_Max; // max number of mask register (bool)
-        static void initializeRegTable();
-
         // type (str) -> array of std::vector registers
         std::map<std::string, std::vector<VRegister *> > currentVRegs;
 
-        RegTable():currentVRegs(){ VRegister::initializeReg(); RegTable::initializeRegTable(); }
+        RegTable():currentVRegs(){ VRegister::initializeReg(); }
         ~RegTable(){
             for(auto it = currentVRegs.begin(); it != currentVRegs.end(); it++){
                 for(auto vrptr = it->second.begin(); vrptr != it->second.end(); vrptr++){
@@ -96,5 +69,17 @@ class RegTable{
         VRegister * allocate_a_vreg_write( std::string type, bool alwaysNew = false); // when alwaysNew = true, allocate a new register, else random allocation
         void print_info();
 };
+
+class ScalarTable{
+    public:
+        size_t tableSize;
+        static int name_number;
+        std::vector<std::string> ScalarTypes;
+        std::vector<std::string> ScalarVars;
+        ScalarTable():tableSize(0){};
+        ~ScalarTable(){};
+        void AddScalar(std::string type, std::string var);
+};
+extern ScalarTable scalar_table;
 
 #endif // REGISTER_HPP

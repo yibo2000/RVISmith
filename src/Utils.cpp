@@ -2,17 +2,19 @@
 #include "cxxopts.hpp"
 
 // default
-std::string JsonlFilePath;
 std::string CodeDirPath;
-std::string connect_type;
-unsigned int dataLen = 10;
-unsigned int seqLen = 10;
-int totalLineNum = 0;
-bool ifSegment = false;
+std::string ConnectTypeStr;
+size_t dataLen = 10;
+size_t seqLen = 10;
+bool ifSegment = true;
+bool CoverageGuided = true;
+bool cov_guide = false;
+bool cov_log = false;
+bool print_cov = false;
 
 uint32_t InitialSeed = 0xdeadbeef;
 std::mt19937 rng;
-SchedulingMODE SchedulingMode = SchedulingMODE::Allin;
+SchedulingMODE SchedulingMode;
 
 std::vector<std::string> PolicySuffixes = {"_tu" };
 std::vector<std::string> PolicySuffixes_mask = {"_tum", "_mu", "_tumu"};
@@ -24,7 +26,7 @@ bool withPolicy = false;
 bool withOverloaded = false;
 
 void parseArguments(int argc, char **argv) {
-    std::string filename = argv[0]; JsonlFilePath.assign("../rvv-doc/parsed.jsonl");
+    std::string filename = argv[0];
     if (argc < 1) { printUsage(std::cerr, filename); exit(1); }
 
     cxxopts::Options options("RVISmith", "One line description of RVISmith");
@@ -33,52 +35,47 @@ void parseArguments(int argc, char **argv) {
         ("s,seed", "Seed", cxxopts::value<uint32_t>()->default_value("0xdeadbeef")) // uint32_t InitialSeed
         ("l,data_length", "Data length", cxxopts::value<unsigned int>()->default_value( "10" )) // unsigned int dataLen
         ("n,sequence_length", "Sequence length", cxxopts::value<unsigned int>()->default_value( "10" )) // unsigned int dataLen
-        ("r,root", "Root (connect type)", cxxopts::value<std::string>()->default_value("vint8mf8_t")) // std::string connect_type
-        //("j,json_path", "Jsonl file path", cxxopts::value<std::string>()->default_value("../rvv-doc/parsed.jsonl")) // std::string JsonlFilePath
         ("o,output", "Output path", cxxopts::value<std::string>()->default_value("./")) // std::string CodeDirPath
-        //("mode", "Instruction scheduling mode {unit,allin,random}", cxxopts::value<std::string>()->default_value("allin"))// instruction scheduling mode
-        ("segment", "Whether segment load-store intrinsics are included (default: false)")
-        ("policy", "Whether load-store intrinsics with policy suffixes are included (default: false)")
-        ("overloaded", "Whether overloaded load-store intrinsics are included (default: false)")
+        ("log-coverage", "Save the coverage information to 'coverage.bin' (default: false)")
+        ("cov-guidance", "Enable coverage guidance and save the coverage information to 'coverage.bin' (default: false)")
+        ("cov-clean", "Clean the coverage data in 'coverage.bin' (default: false)")
+        ("print-cov", "Print the coverage information in 'coverage.bin' (default: false)")
+        //("overloaded", "Whether overloaded load-store intrinsics are included (default: false)")
         ("h,help", "Print usage")
     ;
-    auto result = options.parse(argc, argv);
+    
+    cxxopts::ParseResult result;
+    try{
+        result = options.parse(argc, argv);
+    }
+    catch(const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << ";\n";
+        printUsage(std::cerr, filename);
+        exit(1);
+    }
+    
     if (result.count("help")){
-      std::cout << options.help() << std::endl;
-      exit(0);
+        std::cout << options.help() << std::endl;
+        exit(0);
     }
 
-    /*
-    if (result["mode"].as<std::string>() == "random"){
-        SchedulingMode = SchedulingMODE::Random;
-    }else if (result["mode"].as<std::string>() == "unit"){
-        SchedulingMode = SchedulingMODE::Unit;
-    }else if (result["mode"].as<std::string>() == "allin"){
-        SchedulingMode = SchedulingMODE::Allin;
-    }else{
-        std::cerr << "Argument `mode` is set error, the value should be in  {unit,allin,random}." << std::endl;
-        std::cerr << options.help() << std::endl;
-        exit(1);
-    }*/
+    if ( result.count("print-cov") ) { print_cov = true; } else { print_cov = false; }
+    if ( result.count("log-coverage") ){ cov_log = true; } else { cov_log = false; }
+    if ( result.count("cov-guidance") ){ cov_guide = true; } else { cov_guide = false; }
+    if ( result.count("cov-clean") ){
+        deleteFile("coverage.bin");
+        exit(0);
+    }
+    //if ( result.count("overloaded") ){ withOverloaded = true; } else { withOverloaded = false; }
 
-    if ( result.count("segment") ){
-        ifSegment = true;
-    } else { ifSegment = false; }
-
-    if ( result.count("policy") ){
-        withPolicy = true;
-    } else { withPolicy = false; }
-
-    if ( result.count("overloaded") ){
-        withOverloaded = true;
-    } else { withOverloaded = false; }
-
-    InitialSeed = result["seed"].as<uint32_t>();
+    InitialSeed = result["seed"].as<uint32_t>(); 
+    initializeRNG(InitialSeed);
     dataLen = result["data_length"].as<unsigned int>();
     seqLen = result["sequence_length"].as<unsigned int>();
-    connect_type = result["root"].as<std::string>();
-    JsonlFilePath = std::string("../rvv-doc/parsed.jsonl");
     CodeDirPath = result["output"].as<std::string>();
+
+    std::vector<SchedulingMODE> mode_list = {SchedulingMODE::Allin, SchedulingMODE::Unit, SchedulingMODE::Random};
+    SchedulingMode = *select_random(mode_list);
 
     std::vector<std::string> vector_type_list = {"vint64m1_t", "vint64m2_t", "vint64m4_t", "vint64m8_t", \
     "vint32m1_t", "vint32m2_t", "vint32m4_t", "vint32m8_t", "vint32mf2_t", \
@@ -92,10 +89,24 @@ void parseArguments(int argc, char **argv) {
     "vfloat32m1_t", "vfloat32m2_t", "vfloat32m4_t", "vfloat32m8_t", "vfloat32mf2_t", \
     "vfloat16m1_t", "vfloat16m2_t", "vfloat16m4_t", "vfloat16m8_t", "vfloat16mf2_t", "vfloat16mf4_t", \
     "vbool1_t", "vbool2_t", "vbool4_t", "vbool8_t", "vbool16_t", "vbool32_t", "vbool64_t"};
-    if( std::find(vector_type_list.begin(), vector_type_list.end(), connect_type) == vector_type_list.end() ){
-        // unknown connect_type
-        std::cerr << "unknown connect_type: " << connect_type << ", use default vint8mf8_t" << std::endl;
-        connect_type = std::string("vint8mf8_t");
+    ConnectTypeStr = *select_random(vector_type_list);
+
+    withPolicy = (getRandomNumber<int>(0, 100) % 2) == 0;
+    withOverloaded = (getRandomNumber<int>(0, 100) % 2) == 0;
+}
+
+bool deleteFile(const std::string& filename) {
+    if (!std::filesystem::exists(filename)) {
+        std::cout << "File not exist: " << filename << std::endl;
+        return false;
+    }
+    std::error_code ec;
+    if (std::filesystem::remove(filename, ec)) {
+        std::cout << "Remove: " << filename << std::endl;
+        return true;
+    } else {
+        std::cout << "Fail: " << ec.message() << std::endl;
+        return false;
     }
 }
 
@@ -112,17 +123,6 @@ std::string replaceSubstring(std::string str, const std::string& oldSubstring, c
     return str;
 }
 
-// return whether a std::string starts with another std::string
-bool startsWith(const std::string& str, const std::string& prefix) {
-    return str.find(prefix) == 0;  // Return true if prefix is found at the start (index 0)
-}
-
-// return whether a std::string ends with another std::string
-bool endsWith(const std::string& str, const std::string& suffix) {
-    if (suffix.length() > str.length()) return false;
-    return str.substr(str.length() - suffix.length()) == suffix;
-}
-
 // removes any leading, and trailing whitespaces of the given std::string
 std::string strip(const std::string& str) {
     size_t start = str.find_first_not_of(" \t\n\r\f\v"); // Find the first non-whitespace character from the start
@@ -134,7 +134,7 @@ std::string strip(const std::string& str) {
 
 // merge continuous spaces into one space, and
 // remove any leading, and trailing whitespaces and quotes of the given std::string
-std::string strClean(const std::string& str) {
+std::string strClean(const std::string & str) {
     std::regex quota_regex("[\"\']");
     std::string res = regex_replace( strip(str), quota_regex, ""); // remove quota marks
     std::regex space_regex(" +");
@@ -245,6 +245,7 @@ int bits2moven(int bits){
 }
 
 std::string nfield2n(std::string nfield){
+    assert( nfield != "" );
     assert( nfield.c_str()[1] >= '1' && nfield.c_str()[1] <= '9' );
     return std::string( 1, nfield.c_str()[1] );
 }

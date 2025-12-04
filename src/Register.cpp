@@ -6,16 +6,13 @@ unsigned int VRegister::vNum = 0;
 void VRegister::initializeReg(){
     mNum = 0; vNum = 0;
 }
-// initialize of std::vector register table 
-unsigned int RegTable::mNum_max = MEM_MAX; // max number of memory-source register
-unsigned int RegTable::vNum_max = VREG_MAX; // max number of std::vector-register-source register
-unsigned int RegTable::vlNum_max = VL_MAX; // max number of vl register
-unsigned int RegTable::maskNum_Max = MASK_MAX; // max number of mask register (bool)
-void RegTable::initializeRegTable(){
-    mNum_max = MEM_MAX;
-    vNum_max = VREG_MAX;
-    vlNum_max = VL_MAX;
-    maskNum_Max = MASK_MAX;
+
+ScalarTable scalar_table;
+int ScalarTable::name_number = 0;
+void ScalarTable::AddScalar(std::string type, std::string var){
+    this->ScalarTypes.push_back(type);
+    this->ScalarVars.push_back(var);
+    this->tableSize++;
 }
 
 // set the register name
@@ -39,7 +36,7 @@ std::vector<bool> state;
 void VRegister::setState(std::vector<bool> newState){
     assert( newState.size() >= dataLen );
     this->state.clear();
-    for(int i=0; i<dataLen; ++i){
+    for(size_t i=0; i<dataLen; ++i){
         this->state.push_back(newState[i]);
     }
 }
@@ -48,7 +45,7 @@ void VRegister::setState(std::vector<bool> newState){
 void VRegister::updateState(std::vector<bool> newState){
     assert( newState.size() >= dataLen );
     assert( state.size() >= dataLen );
-    for(int i=0; i<dataLen; ++i){
+    for(size_t i=0; i<dataLen; ++i){
         state[i] = state[i] && newState[i];
     }
 }
@@ -73,7 +70,7 @@ VRegister * RegTable::insertReg(std::string type, Source src){
 VRegister * RegTable::select_vreg_random( std::string type ){
     if( currentVRegs.find(type) == currentVRegs.end() ) return nullptr;
     std::vector<int> idx_not_ended;
-    for( int i=0; i<currentVRegs[type].size(); ++i){
+    for(size_t i = 0; i < currentVRegs[type].size(); ++i){
         // add not ended index into the std::vector
         if( currentVRegs[type][i]->ended == false ){
             idx_not_ended.push_back( i );
@@ -96,7 +93,7 @@ void RegTable::print_info(){
 
 VRegister * RegTable::allocate_a_vreg_read(std::string type, bool alwaysNew /* = false*/){
     // determine the source
-    Source src = Source::Unknown;
+    Source src = Source::UnknownSrc;
     auto ptr = currentVRegs.find(type);
     if( ptr == currentVRegs.end() || alwaysNew){
         // first appearance of a type, allocate a new register and load from memory
@@ -122,7 +119,7 @@ VRegister * RegTable::allocate_a_vreg_read(std::string type, bool alwaysNew /* =
     }
 
     // allocate a new register
-    assert (src != Source::Unknown);
+    assert (src != Source::UnknownSrc);
     VRegister * res = nullptr;
     switch (src){
         case Source::VectorReg:
@@ -138,7 +135,7 @@ VRegister * RegTable::allocate_a_vreg_read(std::string type, bool alwaysNew /* =
 
 VRegister * RegTable::allocate_a_vreg_write(std::string type, bool alwaysNew /* = false*/){
     // determine the source
-    Source src = Source::Unknown;
+    Source src = Source::UnknownSrc;
     auto ptr = currentVRegs.find(type);
     if( ptr == currentVRegs.end() || alwaysNew){
         // first appearance of a type, allocate a new register
@@ -165,7 +162,7 @@ VRegister * RegTable::allocate_a_vreg_write(std::string type, bool alwaysNew /* 
     }
 
     // allocate a new register
-    assert (src != Source::Unknown);
+    assert (src != Source::UnknownSrc);
     VRegister * res = nullptr;
     switch (src){
         case Source::VectorReg:

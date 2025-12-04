@@ -1,33 +1,28 @@
 #ifndef MEMORY_HPP
 #define MEMORY_HPP
 
-#include <string>
-#include <iostream>
-#include <map>
-#include <vector>
 #include "Type.hpp"
-#include "Utils.hpp"
-using namespace std;
 
 // one memory entry
 class MemEntry{
     public:
         std::string elementType;
         std::string memName;
-        std::vector<bool> state;
-        bool notNeedStore;
+        unsigned int length;
+        bool onlyZeroValid;
         bool valueIsBool; // whether the value is bool
         bool allValueIsTrue; // for vcompress
+        bool notNeedStore;
+
+        std::vector<bool> state;
         bool stateIsMask; // whether the state is equal to vmask (for store intrinsics)
-        bool onlyZeroValid;
-        unsigned int length;
         MemEntry():elementType(""),memName(""),length(0),onlyZeroValid(false),valueIsBool(false),allValueIsTrue(false),notNeedStore(false){ 
-            for(int i=0;i<dataLen;++i) state.push_back(true);
+            for(size_t i=0;i<dataLen;++i) state.push_back(true);
             stateIsMask = true; 
         };
         MemEntry(std::string type, std::string name, unsigned int len = dataLen): \
-        elementType(type),memName(name),length(dataLen),onlyZeroValid(false),valueIsBool(false),allValueIsTrue(false),notNeedStore(false){
-            for(int i=0;i<dataLen;++i){
+        elementType(type),memName(name),length(len),onlyZeroValid(false),valueIsBool(false),allValueIsTrue(false),notNeedStore(false){
+            for(size_t i=0;i<dataLen;++i){
                 state.push_back(true);
             }
             stateIsMask = true;

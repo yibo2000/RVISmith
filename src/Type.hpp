@@ -1,28 +1,23 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
-#include <cstring>
-#include <string>
-#include <cassert>
-#include <fstream>
-#include <set>
+#include <unordered_map>
 #include <map>
-#include <stdexcept>
 #include "Utils.hpp"
-
 
 class BaseType{
     public:
         std::string type;
         BaseType():type(""){};
         BaseType(std::string __type__):type(__type__){}; // for void
-        ~BaseType(){};
+        virtual ~BaseType(){};
         std::string getType() { return type; }
         virtual Type enumType() { return Type::Void; }
         virtual std::string getScalar() { throw std::runtime_error("get scalar in void type."); /* should never be called */ }
         virtual void printInfo() { std::cout << "BaseType: " + type << std::endl; }
         virtual std::string getNfield(){ return ""; }
         virtual int getRatio(){ return 0; }
+        virtual bool ifConstPointer() { return false; }
 };
 
 // general types can be used in both rvv intrinsics and C code without rvv
@@ -31,7 +26,7 @@ class GeneralType : public BaseType{
     public:
         bool isPoint; // e.g., input 'double' is false, input 'double *' is true.
         bool isConst;
-        GeneralType():isPoint(false),isConst(false),BaseType(""){};
+        GeneralType():BaseType(""),isPoint(false),isConst(false){};
         GeneralType(std::string __type__):BaseType(__type__){
             // type = strip(__type__);
             if ( endsWith(type, "*") ){ isPoint = true; } else { isPoint = false; }
@@ -50,6 +45,7 @@ class GeneralType : public BaseType{
         virtual void printInfo() { std::cout << "GeneralType: " + type << std::endl; }
         virtual std::string getNfield(){ return ""; }
         virtual int getRatio(){ return 0; }
+        virtual bool ifConstPointer() { return isPoint && isConst; }
 };
 
 std::string getAScalarRandom(std::string type); // given a std::string of scalar type, return a std::string representing the value.
@@ -76,12 +72,14 @@ class VectorType : public GeneralType{
          ", emul="+emul<<", nfield="+nfield<<", ewidth="+std::to_string(ewidth)<<std::endl; }
         virtual std::string getNfield(){ return nfield; }
         virtual int getRatio(){ return ratio; }
+        virtual bool ifConstPointer() { return false; }
 };
+extern VectorType ConnectType;
 
 class UsedTYPES{
     // all types used
     public:
-        std::map<std::string, BaseType *> TypeMap;
+        std::unordered_map<std::string, BaseType *> TypeMap;
         UsedTYPES():TypeMap(){}
         ~UsedTYPES(){
             for(auto it = TypeMap.begin(); it != TypeMap.end(); ++it){
@@ -89,10 +87,13 @@ class UsedTYPES{
             }
         }
         void insert(std::string && s, BaseType * t){
-            TypeMap.insert( {s, t } );
+            TypeMap.insert( {s, t} );
         }
-        BaseType * getPtr(std::string && s){
-            return TypeMap[s];
+        BaseType* getPtr(const std::string& s) {
+            auto it = TypeMap.find(s);
+            if (it == TypeMap.end())
+                return nullptr;
+            return it->second;
         }
         void printTypeMap();
         void initializeAllTypes();

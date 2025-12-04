@@ -1,34 +1,41 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
-#include <string>
+#include <cstring>
 #include <regex>
 #include <iostream>
 #include <vector>
 #include <random>
-#include <unistd.h>
-#include <cmath>
+#include <cassert>
+#include <stdexcept>
+#include <filesystem> // C++ 17 is required
 #include "softfloat.h"
-#include "json.hpp" // JSON for Modern C++ version 3.11.3, in the `extern` directory
 
-#ifndef DEF_INPUT
-// set to 0: .jsonl is input, compile fast, run slow
-// set to 1: .def is input, compile slow, run fast
-#define DEF_INPUT 1
-#endif // DEF_INPUT
-
-#ifndef JSON_INPUT
-#define JSON_INPUT (1-DEF_INPUT)
-#endif
-
-extern std::string JsonlFilePath;
 extern std::string CodeDirPath;
-extern int totalLineNum;
 extern bool ifSegment;
 
-extern unsigned int dataLen;
-extern unsigned int seqLen;
-extern std::string connect_type; // selected in UsedTYPES::initializeAllTypes()
+extern bool CoverageGuided;
+
+extern size_t dataLen;
+extern size_t seqLen;
+extern std::string ConnectTypeStr; 
+extern bool cov_guide;
+extern bool cov_log;
+extern bool print_cov;
+extern std::string db_file;
+
+// for generating load-store intrinsics
+/*
+enum NamingScheme{
+    Non_overloaded,
+    Non_overloaded_with_policy,
+    Overloaded,
+    Overloaded_with_policy
+};
+extern NamingScheme namingscheme;
+*/
+extern bool withPolicy;
+extern bool withOverloaded;
 
 enum Type{
     Void,
@@ -50,19 +57,6 @@ enum SchedulingMODE{
 };
 extern SchedulingMODE SchedulingMode;
 
-// for generating load-store intrinsics
-/*
-enum NamingScheme{
-    Non_overloaded,
-    Non_overloaded_with_policy,
-    Overloaded,
-    Overloaded_with_policy
-};
-extern NamingScheme namingscheme;
-*/
-extern bool withPolicy;
-extern bool withOverloaded;
-
 extern std::vector<std::string> PolicySuffixes;
 extern std::vector<std::string> PolicySuffixes_mask;
 extern std::vector<std::string> __RISCV_VXRM;
@@ -73,14 +67,21 @@ std::string genPolicySuffix(bool mask, bool policy = withPolicy);
 
 void parseArguments(int argc, char **argv);
 
+bool deleteFile(const std::string& filename);
+
 // given a std::string, replace all the substrings to a new std::string
 std::string replaceSubstring(std::string str, const std::string& oldSubstring, const std::string& newSubstring);
 
 // return whether a std::string starts with another std::string
-bool startsWith(const std::string& str, const std::string& prefix);
+constexpr bool startsWith(const std::string_view& str, const std::string_view& prefix){
+    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
 
 // return whether a std::string ends with another std::string
-bool endsWith(const std::string& str, const std::string& suffix);
+constexpr bool endsWith(const std::string_view& str, const std::string_view& suffix){
+    if (suffix.length() > str.length()) return false;
+    return str.substr(str.length() - suffix.length()) == suffix;
+}
 
 // removes any leading, and trailing whitespaces of the given std::string
 std::string strip(const std::string& str);
@@ -92,11 +93,19 @@ std::string strClean(const std::string& str);
 // print usage of RVISmith
 inline void printUsage(std::ostream &out, std::string filename){
     out << "Usage: " << filename << " [OPTION...]" <<  std::endl;
-    out << "-s <seed, default = 0xdeadbeef>" << std::endl;
-    out << "-l <data_length, default = 10>" << std::endl;
-    out << "-j <json_path, default = \"../rvv-doc/parsed.jsonl\">" << std::endl;
-    out << "-o <output_path, default = \"1.c\">" << std::endl;
-    out << "-h" << std::endl;
+    out << "  -s, --seed arg             Seed (default: 0xdeadbeef)" <<  std::endl;
+    out << "  -l, --data_length arg      Data length (default: 10)" <<  std::endl;
+    out << "  -n, --sequence_length arg  Sequence length (default: 10)" <<  std::endl;
+    out << "  -o, --output arg           Output path (default: ./)" <<  std::endl;
+    out << "      --log-coverage         Save the coverage information to 'coverage.bin' (default: false)" <<  std::endl;
+    out << "      --cov-guidance         Enable coverage guidance and save the coverage information to 'coverage.bin' (default: false)" <<  std::endl;
+    out << "      --cov-clean            Clean the coverage data in 'coverage.bin' (default: false)" <<  std::endl;
+    out << "      --print-cov            Print the coverage information in 'coverage.bin' (default: false)" <<  std::endl;
+    // out << "      --policy               Whether load-store intrinsics with policy " <<  std::endl;
+    // out << "                             suffixes are included (default: false)" <<  std::endl;
+    // out << "      --overloaded           Whether overloaded load-store intrinsics are " <<  std::endl;
+    // out << "                             included (default: false)" <<  std::endl;
+    out << "  -h, --help                 Print usage" << std::endl;
 }
 
 // progress bar

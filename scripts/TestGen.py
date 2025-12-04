@@ -14,9 +14,6 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 rvismith_path = ""
 testcode_path = ""
 number = 0
-segment = False
-policy = False
-overloaded = False
 
 def getSeed():
     #random_uint32 = np.random.randint(0, 2**32, dtype=np.uint32)
@@ -65,14 +62,10 @@ def once_gen(n):
 
     # generate test code
     cmd = rvismith_path
-    if(segment): cmd += " --segment "
-    if(policy): cmd += " --policy "
-    if(overloaded): cmd += " --overloaded "
     seed, data_len, seq_len, root = getSeed(), getDataLength(), getSeqLength(), getRoot()
     cmd += " --seed " + seed \
         + " --data_length " + data_len \
         + " --sequence_length " + seq_len \
-        + " --root " + root \
         + " -o " + os.path.join(code_dir)
 
     result = subprocess.run([cmd], shell=True, capture_output=True, text=True )
@@ -84,7 +77,7 @@ def once_gen(n):
         logf.write(result.stderr)
         logf.close()
 
-    data = {'id': [str(n)], 'seed': [seed], 'data_length': [data_len], 'sequence_length': [seq_len], 'root': [root] }
+    data = {'id': [str(n)], 'seed': [seed], 'data_length': [data_len], 'sequence_length': [seq_len] }
     return data
 
 
@@ -132,17 +125,11 @@ if __name__ == "__main__":
     rvismith_path = args.rvismith_path
     testcode_path = args.testcode_path
     number = int(args.number) if int(args.number) > 0 else 10
-    segment = args.segment
-    policy = args.policy
-    overloaded = args.overloaded
 
     with open( os.path.join(args.testcode_path, "gen_config.json"), "w", encoding="utf-8") as json_file:
         data = {"rvismith_path": args.rvismith_path, \
                 "testcode_path": args.testcode_path, \
                 "number": number, \
-                "segment": 1 if segment else 0, \
-                "policy": 1 if policy else 0, \
-                "overloaded": 1 if overloaded else 0
                 }
         cf = json.dump(data, json_file, indent=4 )
 
