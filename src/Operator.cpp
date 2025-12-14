@@ -34,6 +34,7 @@ void BaseOperator::OpInit(size_t pnum, const char* const raw_args[MAX_ARG_TOKENS
     }else if(ratios.size() > 1 ){ tmp_ratio = 0;
     }
     assert(tmp_ratio == this->commonRatio); // double check
+    this->commonRatio = tmp_ratio;
 }
 
 std::string BaseOperator::getDefStr(){ 
@@ -269,7 +270,7 @@ std::string BaseOperator::codegen(){
     if ( this->enumRetype() != Type::OneDVector ){
         // return scalar: TBD
         // return res;
-        std::string var_type = this->getRetype(); std::string var_name = "var_" + std::to_string(ScalarTable::name_number++);
+        std::string var_type = this->getRetype(); std::string var_name = "scalar_" + std::to_string(ScalarTable::name_number++);
         scalar_table.AddScalar( this->getRetype(), var_name);
         res += var_name + " = " + this->getName() + "(";
     } else {
